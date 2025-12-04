@@ -73,16 +73,16 @@ m$setParameter(
 
 # Predict the model
 fit_lin <- m$estimate(df, method = "ekf", compile = TRUE)
-pred_lin <- m$predict(df, k.ahead = 10)
+pred_lin <- m$predict(df)
 
 summary(fit_lin)
 
 
 ## Visualization
-s10 <- pred_lin$states %>% filter(k.ahead == 10)
+s10 <- pred_lin$states
 
 ggplot() +
-  geom_line(aes(x = s10$t.j, y = s10$X3, color = "10-step Prediction"),
+  geom_line(aes(x = s10$t.j, y = s10$X3, color = "Prediction"),
             size = 1.1) +
   
   geom_line(aes(x = df$t, y = df$y, color = "Observed"),
@@ -90,10 +90,10 @@ ggplot() +
   
   scale_color_manual(values = c(
     "Observed" = "black",
-    "10-step Prediction" = "red"
+    "Prediction" = "red"
   )) +
   
-  labs(title = "10-step Ahead Prediction vs Observed",
+  labs(title = "Prediction vs Observed",
        x = "Time", y = "Stormwater",
        color = "") +
   
@@ -136,8 +136,8 @@ m2$addSystem(
 
 # STATE 2
 m2$addSystem(
-  dX2 ~ (2/K) * X1 * dt 
-  - (2/K) * X2 * dt 
+  dX2 ~ (2/K) * X1 * dt
+  - (2/K) * (1 / (1 + exp(-alpha * (X2 - beta)))) *X2 * dt 
   + sigma * dw2
 )
 
@@ -168,7 +168,9 @@ m2$addInput(U)
 #----------------------------------
 # INITIAL STATE
 #----------------------------------
-m2$setInitialState(list(c(df$U[1], df$U[1], df$y[1]), 1e-1 * diag(3)))
+m2$setInitialState(
+  list(c(df$y[1], df$y[1], df$y[1]), diag(3))
+)
 
 #----------------------------------
 # PARAMETERS
@@ -177,25 +179,25 @@ m2$setParameter(
   A = c(initial = 1, lower = 0, upper = 500),
   K = c(initial = 1, lower = 1e-3, upper = 500),
   
-  alpha = c(initial = 1, lower = 0.01, upper = 1000),
-  beta  = c(initial = 0.5, lower = 0.01, upper = 1000),
+  alpha = c(initial = 1, lower = 0.01, upper = 50),
+  beta  = c(initial = 0.5, lower = 0.01, upper = 50),
   
-  sigma = c(initial = 0.1, lower = 1e-10, upper = 30),
-  sigma_storm  = c(initial = 0.1, lower = 1e-10, upper = 30)
+  sigma = c(initial = 0.1, lower = 1e-4, upper = 30),
+  sigma_storm  = c(initial = 0.1, lower = 1e-4, upper = 30)
 )
 
 #----------------------------------
 # FIT THE MODEL
 #----------------------------------
-fit <- m2$estimate(df, method = "ekf", compile=T)
+fit <- m2$estimate(df, method = "ukf", compile=T)
 
 # Predictions
-pred <- m2$predict(df, k.ahead = 10)
+pred <- m2$predict(df)
 
 summary(fit)
 
-# Extract the 1-step ahead (prior) estimates\
-s <- pred$states %>% filter(k.ahead == 10)
+# Extract the estimates\
+s <- pred$states
 
 ggplot() +
   geom_ribbon(aes(x = s$t.j,
@@ -203,7 +205,7 @@ ggplot() +
                   ymax = s$X3 + 2*sqrt(s$var.X3)),
               fill = "grey80", alpha = 0.6) +
   
-  geom_line(aes(x = s$t.j, y = s$X3, color = "10-step Prediction"),
+  geom_line(aes(x = s$t.j, y = s$X3, color = "Prediction"),
             size = 1.1) +
   
   geom_line(aes(x = df$t, y = df$y, color = "Observed"),
@@ -211,10 +213,10 @@ ggplot() +
   
   scale_color_manual(values = c(
     "Observed" = "black",
-    "10-step Prediction" = "red"
+    "Prediction" = "red"
   )) +
   
-  labs(title = "10-step Ahead Prediction vs Observed",
+  labs(title = "Prediction vs Observed",
        x = "Time",
        y = "Stormwater",
        color = "") +
